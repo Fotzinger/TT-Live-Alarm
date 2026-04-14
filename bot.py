@@ -14,7 +14,7 @@ from TikTokLive.client.errors import UserOfflineError
 
 load_dotenv()
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("8757795761:AAGf-IHOka-5HfXz83ivYDkkCOqMDDssN-A")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 USERS_FILE = Path("users.json")
