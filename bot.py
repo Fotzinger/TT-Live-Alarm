@@ -1,3 +1,4 @@
+cat > bot.py << 'EOF'
 import asyncio
 import json
 import os
@@ -20,15 +21,16 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 USERS_FILE = Path("users.json")
 
 monitor_tasks = {}
+clients = {}
 
 # Status pro User
 live_announced = {}
 offline_since = {}
 
 # Einstellungen
-CHECK_DELAY_OFFLINE = 90
-CHECK_DELAY_ERROR = 120
-OFFLINE_RESET_SECONDS = 5 * 60  # 5 Minuten
+CHECK_DELAY_OFFLINE = 180      # 3 Minuten warten, wenn User offline ist
+CHECK_DELAY_ERROR = 240        # 4 Minuten warten bei Fehlern
+OFFLINE_RESET_SECONDS = 5 * 60 # 5 Minuten offline = neue Session
 
 
 def load_users():
@@ -83,6 +85,7 @@ def mark_offline_observation(username):
 
 def create_client(username):
     client = TikTokLiveClient(unique_id=f"@{username}")
+    clients[username] = client
 
     if username not in live_announced:
         live_announced[username] = False
@@ -91,7 +94,6 @@ def create_client(username):
 
     @client.on(ConnectEvent)
     async def on_connect(event):
-        # Sobald der User wieder live erreichbar ist, Offline-Timer zurücksetzen
         offline_since[username] = None
 
         if should_send_live_notification(username):
@@ -113,7 +115,7 @@ async def monitor(username):
             client = create_client(username)
             await client.start()
 
-            # Falls start() normal endet, vorsichtig als Offline-Beobachtung zählen
+            # Falls Verbindung normal endet, vorsichtig als offline werten
             mark_offline_observation(username)
             await asyncio.sleep(CHECK_DELAY_OFFLINE)
 
@@ -122,7 +124,13 @@ async def monitor(username):
             await asyncio.sleep(CHECK_DELAY_OFFLINE)
 
         except Exception as e:
-            print(f"[FEHLER] @{username}: {e}")
+            error_text = str(e)
+
+            if "DEVICE_BLOCKED" in error_text:
+                print(f"[BLOCKIERT] @{username} - TikTok blockiert gerade, warte...")
+            else:
+                print(f"[FEHLER] @{username}: {e}")
+
             await asyncio.sleep(CHECK_DELAY_ERROR)
 
 
@@ -143,6 +151,13 @@ async def stop_monitor(username):
     task = monitor_tasks.pop(username, None)
     if task:
         task.cancel()
+
+    client = clients.pop(username, None)
+    if client:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
 
     live_announced.pop(username, None)
     offline_since.pop(username, None)
@@ -204,7 +219,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def on_startup(app: Application):
     users = load_users()
     print(f"[GELADENE USER] {users}")
-    for username in users:
+
+    # User zeitversetzt starten, damit TikTok nicht alles gleichzeitig bekommt
+    for i, username in enumerate(users):
+        await asyncio.sleep(i * 5)
         await ensure_monitor_running(username)
 
 
@@ -224,3 +242,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+EOF
