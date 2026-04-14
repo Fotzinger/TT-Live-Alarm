@@ -1,0 +1,4 @@
+python-telegram-bot
+TikTokLive
+python-dotenv
+requests
