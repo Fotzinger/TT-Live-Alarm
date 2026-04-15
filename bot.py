@@ -22,14 +22,13 @@ USERS_FILE = Path("users.json")
 monitor_tasks = {}
 clients = {}
 
-# Status pro User
 live_announced = {}
 offline_since = {}
 
-# Einstellungen
-CHECK_DELAY_OFFLINE = 180      # 3 Minuten warten, wenn User offline ist
-CHECK_DELAY_ERROR = 240        # 4 Minuten warten bei Fehlern
-OFFLINE_RESET_SECONDS = 5 * 60 # 5 Minuten offline = neue Session
+CHECK_DELAY_OFFLINE = 180
+CHECK_DELAY_ERROR = 240
+CHECK_DELAY_SIGN_ERROR = 600
+OFFLINE_RESET_SECONDS = 5 * 60
 
 
 def load_users():
@@ -114,7 +113,6 @@ async def monitor(username):
             client = create_client(username)
             await client.start()
 
-            # Falls Verbindung normal endet, vorsichtig als offline werten
             mark_offline_observation(username)
             await asyncio.sleep(CHECK_DELAY_OFFLINE)
 
@@ -125,12 +123,17 @@ async def monitor(username):
         except Exception as e:
             error_text = str(e)
 
-            if "DEVICE_BLOCKED" in error_text:
-                print(f"[BLOCKIERT] @{username} - TikTok blockiert gerade, warte...")
+            if "SIGN_NOT_200" in error_text:
+                print(f"[SIGN FEHLER] @{username} - Sign-Server antwortet gerade nicht richtig, warte 10 Minuten...")
+                await asyncio.sleep(CHECK_DELAY_SIGN_ERROR)
+
+            elif "DEVICE_BLOCKED" in error_text:
+                print(f"[BLOCKIERT] @{username} - TikTok blockiert gerade, warte 10 Minuten...")
+                await asyncio.sleep(CHECK_DELAY_SIGN_ERROR)
+
             else:
                 print(f"[FEHLER] @{username}: {e}")
-
-            await asyncio.sleep(CHECK_DELAY_ERROR)
+                await asyncio.sleep(CHECK_DELAY_ERROR)
 
 
 async def ensure_monitor_running(username):
@@ -219,7 +222,6 @@ async def on_startup(app: Application):
     users = load_users()
     print(f"[GELADENE USER] {users}")
 
-    # User zeitversetzt starten, damit TikTok nicht alles gleichzeitig bekommt
     for i, username in enumerate(users):
         await asyncio.sleep(i * 5)
         await ensure_monitor_running(username)
