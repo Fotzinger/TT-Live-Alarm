@@ -17,7 +17,7 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-USERS_FILE = Path("users.json")
+USERS_FILE = Path("/data/users.json")
 
 monitor_tasks = {}
 clients = {}
